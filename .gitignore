@@ -1,0 +1,16 @@
+# Virtual environment (big, and can be rebuilt)
+.venv/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Secrets and private data (for later in the project)
+.env
+*.db
+*.sqlite3
+
+# Editor and operating-system clutter
+.vscode/
+Thumbs.db
+.DS_Store
