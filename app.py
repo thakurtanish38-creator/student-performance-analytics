@@ -3,6 +3,7 @@ import numpy as np
 import seaborn as sns
 import streamlit as st
 from src.load_data import load_student_data
+from src.cgpa import plan_target_cgpa
 
 st.set_page_config(page_title="Student Performance Analytics", layout="wide")
 
@@ -117,16 +118,53 @@ def show_correlations(df):
 
     st.caption("G1 and G2 are earlier grades in the same subject, so a strong link to G3 is expected. Correlation does not show cause.")
 
+def show_cgpa_planner():
+    st.header("Target CGPA Planner")
+    st.write("Find the average GPA you need in your upcoming credits to reach a target CGPA. These are your own numbers, and they are separate from the student dataset.")
 
-PAGES = ["Overview", "Study time", "Absences", "Failures", "Correlations"]
+    max_gpa = st.number_input("Maximum GPA on your grading scale", min_value=1.0, value=10.0, step=0.5)
+
+    col1, col2 = st.columns(2)
+    current_cgpa = col1.number_input("Current CGPA", min_value=0.0, value=7.5, step=0.1)
+    target_cgpa = col2.number_input("Target CGPA", min_value=0.0, value=8.0, step=0.1)
+    completed_credits = col1.number_input("Credits completed so far", min_value=0.0, value=60.0, step=1.0)
+    future_credits = col2.number_input("Credits you expect to take", min_value=0.0, value=20.0, step=1.0)
+
+    try:
+        result = plan_target_cgpa(current_cgpa, completed_credits, future_credits, target_cgpa, max_gpa)
+    except ValueError as error:
+        st.error(str(error))
+        return
+
+    if result["status"] == "achievable":
+        st.success(result["message"])
+        st.metric("Required average GPA in upcoming credits", round(result["required_gpa"], 2))
+    elif result["status"] == "already_achieved":
+        st.success(result["message"])
+    elif result["status"] == "impossible":
+        st.error(result["message"])
+    else:
+        st.warning(result["message"])
+
+    st.metric("Highest CGPA you could reach", round(result["max_achievable_cgpa"], 2))
+
+    with st.expander("How is this calculated?"):
+        st.write("CGPA is credit-weighted, so a course with more credits counts for more. To reach a target, the average GPA you need over your upcoming credits is:")
+        st.latex(r"\text{required GPA} = \frac{\text{target} \times (\text{completed} + \text{future}) - \text{current} \times \text{completed}}{\text{future}}")
+        st.write("The highest CGPA you could reach assumes a perfect GPA in every upcoming credit.")
+
+    st.caption("This assumes a standard credit-weighted cumulative CGPA. Universities can differ (for example, repeated courses or grade replacement), so check your own rules. This is a projection, not an official result.")
+ANALYTICS_PAGES = ["Overview", "Study time", "Absences", "Failures", "Correlations"]
+PLANNER_PAGES = ["Target CGPA Planner"]
 
 st.sidebar.title("Menu")
-page = st.sidebar.radio("Go to", PAGES)
-hide_zeros = st.sidebar.checkbox("Hide students with a final grade of 0")
+page = st.sidebar.radio("Go to", ANALYTICS_PAGES + PLANNER_PAGES)
 
-df = get_data()
-if hide_zeros:
-    df = df[df["G3"] != 0]
+if page in ANALYTICS_PAGES:
+    hide_zeros = st.sidebar.checkbox("Hide students with a final grade of 0")
+    df = get_data()
+    if hide_zeros:
+        df = df[df["G3"] != 0]
 
 if page == "Overview":
     show_overview(df)
@@ -138,3 +176,5 @@ elif page == "Failures":
     show_failures(df)
 elif page == "Correlations":
     show_correlations(df)
+elif page == "Target CGPA Planner":
+    show_cgpa_planner()
